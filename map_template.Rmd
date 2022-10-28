@@ -1,0 +1,269 @@
+---
+title: "Heat (choropleth) maps <img src=\"HPIO_Logo_Small.jpg\" style=\"float: right;\"/>" 
+author: "Lareina La Flair, Health Policy Institute of Ohio"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    number_sections: true
+    theme: lumen
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+packages <- c("dplyr", "wesanderson", "forcats", "plotly", "stringr", "tidyr", "data.table", "purrr", "kableExtra", "flextable", "plotly", "unikn", "leaflet", "sf", "censusapi", "tidycensus", "tigris")
+
+#census_api_key('0172cbf7b12d3e471aaef67bbe7b87a5971cd019')
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+
+```
+
+# Make a color palette based HPIO's style guide
+
+```{r hpio-color-palette, eval = TRUE, include=TRUE}
+
+# HPIO colors:
+
+color_hpio <- c("#b1c9e8", "#5e82ab", "#003366", "#a6192e")
+names_hpio <- c("soft blue", "moderate blue", "midnight blue", "dark red")
+pal_hpio   <- newpal(color_hpio, names_hpio)
+
+#visualize it
+seecol(pal_hpio, col_brd = "white", lwd_brd = 6, 
+       title = "Colors of HPIO",
+       mar_note = "Source: HPIO Style Guide")
+```
+
+# Background
+
+HPIO has an emerging need to produce *choropleth maps* (sometimes referred to as "heat maps" but they're not exchangeable) for visualizing an aggregate summary of some condition or outcome (e.g., population density, percent Black race, social vulnerability, suicide deaths) across a geographic landscape (e.g., states, counties, ZIP codes, census tracts). This is also referred to as "spatial variation."
+
+A description of [choropleth maps](https://datavizcatalogue.com/methods/choropleth.html) here.
+
+## Building an interactive map with the `{leaflet}` package in R. 
+
+For a tidy introduction to the `leaflet` package, check out the DataCamp module [Interactive Maps with leflaet in R](https://campus.datacamp.com/courses/interactive-maps-with-leaflet-in-r/setting-up-interactive-web-maps?ex=1)
+
+## Using census api function
+
+You will need a census API key to access data through the Application Programming Interface (API) for this exercise. Store this key somewhere safe and as with all passwords, do not leave it in your code.
+
+To request an API Key, navigate to the [U.S. Census API Terms of Service](https://www.census.gov/data/developers/about/terms-of-service.html). Make sure to read through the Terms of Service document to you ensure you’re using the API properly. Then click the icon that says “Request a KEY” in the bottom left of the screen.
+
+# Read in the data
+
+Read in the dataset with the health event or condition you're looking to map.
+
+Here we are using 2021 fentanyl-related deaths by county from the Ohio Department of Health [Public Health Data Warehouse](https://odh.ohio.gov/know-our-programs/informatics-and-data-management/resources/odh-full-banner-public-data-warehouse)
+
+(After cleaning) The data have the following columns: 
+* `county` as Ohio county of residence
+* `rate` expressed as number of deaths per 100K population
+* `count` the number of deaths
+
+Your data may look differently and thus have different data cleaning needs, but please make sure you have a rate that accounts for population density. 
+
+```{r read-health-data, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
+## Map table is a dataframe with the count of OD (or the health event of interest) aggregated by county
+
+# Date notes: 
+# Fentanyl and its analogues related deaths have a positive mention of select text strings in the death certificate text.
+# County is county pf residence
+# Rate from ODH appears to be expressed as per 100K population
+
+fent_deaths <- fread("./data/oh_death_county_fentanyl_2021.csv")
+names(fent_deaths)
+
+#clean up columns in your dataset 
+
+map_table <- fent_deaths %>% 
+  filter(DeathFentanylAnaloguesIndFentanylAnalogues == "Yes" &  DeathCountyCountyName != "Total") %>% 
+  rename(county = DeathCountyCountyName, count = Deaths, rate = DeathAgeAdjustedRate11) %>% 
+  select(-DeathFentanylAnaloguesIndFentanylAnalogues)
+
+map_table$count <- round(map_table$count, digits = 2)
+map_table$county <- tolower(map_table$county)
+
+map_table %>% 
+  arrange(desc(rate))
+
+```
+
+## Load the shape files
+
+Here, we read in the shape file for counties, filtered to Ohio counties. Centroids are the mathematical center of a geographic unit (here, counties).
+
+```{r read-shape-file, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
+## Load shape file from Tigris
+counties <- counties("OH", cb=T)
+centroids <- counties %>%
+  select(NAME, geometry) %>% # select only the necessary columns
+  sf::st_centroid(NAME)  
+
+## check out the unadorned map quickly (eww, those blue lines!)
+
+counties %>% 
+  leaflet() %>% 
+  addTiles() %>% 
+  addPolygons(popup=~NAME)
+
+```
+
+## Spatial joins
+
+Spatially join the outcome (here, deaths) to the geographic unit (here, counties).
+
+
+```{r spatial-join, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
+## spatial join visits to counties
+
+counties$NAME <- tolower(counties$NAME)
+county_merged <- geo_join(counties, map_table, "NAME", "county")
+county_merged <- subset(county_merged, !is.na(count))
+
+# Creating a color palette based on the number range in the total column
+pal <- colorNumeric("Blues", domain=county_merged$count)
+
+# Viridis is a color safe palette (accessible for persons with color blindness)
+
+mypalette <- colorNumeric(palette="viridis", domain=county_merged$count, na.color="transparent")
+
+# Setting up the pop up text
+popup <- paste0("Total Deaths: ", as.character(county_merged$count))
+```
+
+## Basic map with counts of visits only (unadjusted for population density) 
+
+Again, don't do this in your final product, but this unadjusted map illustrates how misleading maps without considering population density can be.
+
+
+```{r display-unadjusted, echo=FALSE, eval=TRUE, warning = FALSE, include = TRUE}
+
+## Basic map with counts of visits only (unadjusted for population density) 
+
+county_merged %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(-82.983330, 39.983334, zoom = 6) %>% #set long and lat coordinates to Columbus as state center
+  addPolygons(data = county_merged, 
+             fillColor = ~mypalette(county_merged$count), 
+             fillOpacity = 0.7, 
+             weight = 0.2, 
+             smoothFactor = 0.2, 
+             popup = ~popup) %>%
+  # Add some labels to counties
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
+   addLegend(pal = mypalette, 
+          values = county_merged$count, 
+          position = "bottomleft", 
+          title = "Count of Fentanyl-related Deaths by County, 2021")
+
+```
+
+## Add population density
+
+Add county population to account for population density using the `get_acs` function. You will need your Census key! (Remember to delete the census key from your code or use a password manager like `keyring`.)
+
+Here, we join county population to df with event by county using GEOID.
+
+```{r add-pop, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
+
+# Get county population from API using census key
+
+# Add your census key
+
+census_api_key('0172cbf7b12d3e471aaef67bbe7b87a5971cd019') # paste your key here
+
+#census_api_key('[your key here]') 
+
+county_pop <- get_acs(geography = "county", 
+                    variables = "B01003_001", # specify the table containing the pop estimates
+                    state = "OH",
+                    geometry = TRUE)
+
+# Cleaning up the column names
+county_pop$GEOID <- as.numeric(county_pop$GEOID)
+county_pop$NAME <- tolower(county_pop$NAME)
+
+# clear off useless fields
+county_pop <- county_pop %>% 
+  select(GEOID, NAME, estimate) %>% 
+  st_drop_geometry()
+
+# GEOID is the variable on which you link
+
+county_merged$GEOID <- as.numeric(county_merged$GEOID) #make sure GEOID is numeric
+
+## join county population to df with event by county using GEOID
+
+county_pop_merged <- geo_join(county_merged, county_pop, by = "GEOID", how = "left")
+county_pop_merged <- subset(county_pop_merged, !is.na(count))
+
+# Calculating per visits 100,000 residents and rounding to 2 digits
+county_pop_merged$per_capita <-round(county_pop_merged$count/county_pop_merged$estimate*100000,2)
+
+# Experiment with color palettes. Here I use "Blues" for simplicity.
+
+#mypalette <- colorNumeric(palette="viridis", domain=county_pop_merged$per_capita, na.color="transparent")
+mypalette <- colorNumeric(palette="Blues", domain=county_pop_merged$per_capita, na.color="transparent")
+
+# Setting up the pop up text
+
+popup_rate <- paste0("<strong>", county_pop_merged$NAME.x, 
+                   "</strong><br />Death Count: ", county_pop_merged$count,
+                   "<br />Per capita: ", 
+                   as.character(county_pop_merged$per_capita))
+
+```
+
+# Print Final Map
+
+Here we display the our example map, Fentanyl-related deaths by Ohio County, 2021
+
+Fentanyl and its analogues related deaths have a positive mention of select text strings in the death certificate text. County is county of residence at the time of death. In 2021, Montgomery County's fentanyl-related death rate was 4.59 deaths per 100,000 population (n=244 deaths). 
+
+*Note: Rates in counties with fewer than 10 deaths have been suppressed.*
+*2021 deaths data are still preliminary and subject to change.*
+
+
+```{r display_map, echo=FALSE, eval=TRUE, warning = FALSE}
+
+map <- county_pop_merged %>% 
+leaflet(options = leafletOptions(dragging = FALSE, maxZoom = 18)) %>%
+  addProviderTiles(providers$CartoDB.PositronNoLabels) %>%
+  setView(-82.983330, 39.983334, zoom = 7) %>% 
+  addPolygons(data = county_pop_merged, 
+              fillColor = ~mypalette(county_pop_merged$per_capita), 
+              fillOpacity = 0.6, 
+              weight = 0.2, 
+              smoothFactor = 0.2, 
+              popup = ~popup_rate) %>%
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.5)) %>% 
+  addLegend(pal = mypalette, 
+            values = county_pop_merged$per_capita, 
+            position = "bottomleft", 
+            title = "Fentanyl-related Deaths<br />per 100,000 residents<br/> 2021") %>% 
+   leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
+   leaflet.extras::addResetMapButton()
+
+map
+```
+
+
+End transmission!
