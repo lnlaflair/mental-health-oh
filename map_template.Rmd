@@ -14,9 +14,9 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-packages <- c("dplyr", "wesanderson", "forcats", "plotly", "stringr", "tidyr", "data.table", "purrr", "kableExtra", "flextable", "plotly", "unikn", "leaflet", "sf", "censusapi", "tidycensus", "tigris")
+packages <- c("dplyr", "wesanderson", "forcats", "plotly", "stringr", "tidyr", "data.table", "purrr", "kableExtra", "flextable", "plotly", "unikn", "leaflet", "leaflet.extras", "sf", "censusapi", "tidycensus", "tigris")
 
-#census_api_key('0172cbf7b12d3e471aaef67bbe7b87a5971cd019')
+
 
 # Install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -185,7 +185,7 @@ Here, we join county population to df with event by county using GEOID.
 
 # Add your census key
 
-census_api_key('0172cbf7b12d3e471aaef67bbe7b87a5971cd019') # paste your key here
+census_api_key('#####################') # paste your key here
 
 #census_api_key('[your key here]') 
 
@@ -245,6 +245,7 @@ map <- county_pop_merged %>%
 leaflet(options = leafletOptions(dragging = FALSE, maxZoom = 18)) %>%
   addProviderTiles(providers$CartoDB.PositronNoLabels) %>%
   setView(-82.983330, 39.983334, zoom = 7) %>% 
+  leaflet.extras::addSearchOSM() %>% 
   addPolygons(data = county_pop_merged, 
               fillColor = ~mypalette(county_pop_merged$per_capita), 
               fillOpacity = 0.6, 
