@@ -1,0 +1,658 @@
+---
+title: "HVD Exploratory Analysis for County Disaggregation <img src=\"HPIO_Logo_Small.jpg\" style=\"float: right;\"/>" 
+author: "Lareina La Flair, Health Policy Institute of Ohio"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    number_sections: true
+    theme: lumen
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+packages <- c("dplyr", "forcats", "plotly", "stringr", "tidyr", "data.table", "purrr", "kableExtra", "flextable", "plotly", "unikn", "leaflet", "leaflegend", "leaflet.extras", "sf", "censusapi", "tidycensus", "tigris")
+
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+
+```
+
+# Background
+
+HPIO has an emerging need to produce *choropleth maps* for visualizing an aggregate summary of some condition or outcome (e.g., population density, percent Black race, social vulnerability, suicide deaths) across Ohio counties for the Health Value Dashboard. 
+
+For the 2023 Health Value Dashboard, we are tasked with identifying metrics for county disaggregation. The metrics below are Ohio-specific and are intended to be presented jointly, pairing one community condition measure with a health outcome at the county level. **This analysis is exploratory.**
+
+
+# Make the maps
+
+Read in the dataset with the health event or condition you're looking to map.
+
+Here we are using  Social Vulnerability Index by county from the Ohio Department of Health [Public Health Data Warehouse](https://odh.ohio.gov/know-our-programs/informatics-and-data-management/resources/odh-full-banner-public-data-warehouse)
+
+(After cleaning) The data have the following columns: 
+* `county` as Ohio county of residence
+* `index` expressed as number of deaths per 100K population
+
+
+```{r read-health-data, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
+## Map table is a dataframe with the count of OD (or the health event of interest) aggregated by county
+
+svi <- fread("./data/Ohio_COUNTY_SVI_2020.csv")
+names(svi)
+
+#clean up columns in your dataset 
+
+map_table_svi  <- svi %>% 
+  #filter(DeathFentanylAnaloguesIndFentanylAnalogues == "Yes" &  DeathCountyCountyName != "Total") %>% 
+  rename(county = COUNTY, svi = RPL_THEMES) %>% 
+  select(FIPS, county, E_TOTPOP, svi)
+
+map_table_svi$svi <- round(map_table_svi$svi, digits = 3)
+map_table_svi$county <- tolower(map_table_svi$county)
+
+map_table_svi %>% 
+  arrange(desc(svi))
+
+## Infant Mortality Rate
+
+
+imr <- fread("./data/OH_county_IMR_2017-2021.csv")
+names(imr)
+
+#clean up columns in your dataset 
+
+map_table_imr <- imr %>% 
+  filter(DeathCountyCountyName != "Total") %>% 
+  rename(county = DeathCountyCountyName, count = Deaths, rate = DeathRate) %>% 
+  select(county, rate, count)
+
+map_table_imr$rate <- round(map_table_imr$rate, digits = 3)
+map_table_imr$county <- tolower(map_table_imr$county)
+
+map_table_imr %>% 
+  arrange(desc(count))
+
+## Low Birth Weight
+
+lbw <- fread("./data/lbw_2014-2020.csv")
+names(lbw)
+
+#clean up columns in your dataset 
+
+map_table_lbw <- lbw %>% 
+  rename(percent = value) %>% 
+  select(county, percent)
+
+map_table_lbw$percent <- round(map_table_lbw$percent, digits = 3)
+map_table_lbw$county <- tolower(map_table_lbw$county)
+
+map_table_lbw %>% 
+  arrange(desc(percent))
+
+## Food insecurity
+
+
+fins <- fread("./data/fins_2019.csv")
+names(fins)
+
+#clean up columns in your dataset 
+
+map_table_fins <- fins %>% 
+  rename(percent = value) %>% 
+  select(county, percent)
+
+map_table_fins$percent <- round(map_table_fins$percent, digits = 3)
+map_table_fins$county <- tolower(map_table_fins$county)
+
+map_table_fins%>% 
+  arrange(desc(percent))
+
+## Mental health providers
+
+
+mhprov <- fread("./data/mhprovider_2021.csv")
+names(mhprov)
+
+#clean up columns in your dataset 
+
+map_table_mhprov<- mhprov %>% 
+  rename(county = County, count = provider_count) %>% 
+  select(county, ratio, count)
+
+# remove commas and switch to lowercase
+map_table_mhprov$count <- as.numeric(gsub(",","",map_table_mhprov$count))
+map_table_mhprov$ratio <- (gsub(",","",map_table_mhprov$ratio))
+map_table_mhprov$county <- tolower(map_table_mhprov$county)
+
+
+map_table_mhprov$ratio <- str_extract(map_table_mhprov$ratio, "[0-9]+")
+
+
+map_table_mhprov%>% 
+  arrange(desc(ratio))
+
+## Suicide deaths
+
+suic <- fread("./data/suic_county_2020-2021.csv")
+names(suic)
+
+#clean up columns in your dataset 
+
+map_table_suic <- suic %>% 
+  rename(county = DeathCountyCountyName, count = Deaths, rate = DeathRate) %>% 
+  select(county, count, rate)
+
+# switch to lowercase
+map_table_suic$county <- tolower(map_table_suic$county)
+
+
+map_table_suic%>% 
+  arrange(desc(rate))
+
+## Overdose deaths
+
+od <- fread("./data/od_county_2020-2021.csv")
+names(od)
+
+#clean up columns in your dataset 
+
+map_table_od <- od %>% 
+  rename(county = DeathCountyCountyName, count = Deaths, rate = DeathRate) %>% 
+  select(county, count, rate)
+
+# switch to lowercase
+map_table_od$county <- tolower(map_table_od$county)
+
+
+map_table_od%>% 
+  arrange(desc(rate))
+
+
+```
+
+## Load the shape files
+
+Here, we read in the shape file for counties, filtered to Ohio counties. Centroids are the mathematical center of a geographic unit (here, counties).
+
+```{r read-shape-file, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
+## Load shape file from Tigris
+counties <- counties("OH", cb=T)
+centroids <- counties %>%
+  select(NAME, geometry) %>% # select only the necessary columns
+  sf::st_centroid(NAME)  
+
+## check out the unadorned map quickly (eww, those blue lines!)
+
+counties %>% 
+  leaflet() %>% 
+  addTiles() %>% 
+  addPolygons(popup=~NAME)
+
+```
+
+## Spatial joins
+
+Spatially join the outcome (here, deaths) to the geographic unit (here, counties).
+
+
+```{r spatial-join, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
+## spatial join visits to counties
+
+counties$NAME <- tolower(counties$NAME)
+
+#svi
+
+county_merged_svi <- geo_join(counties, map_table_svi, "NAME", "county")
+county_merged_svi <- subset(county_merged_svi, !is.na(count))
+
+#imr
+county_merged_imr <- geo_join(counties, map_table_imr, "NAME", "county")
+county_merged_imr <- subset(county_merged_imr, !is.na(count))
+
+#lbw
+county_merged_lbw <- geo_join(counties, map_table_lbw, "NAME", "county")
+county_merged_lbw <- subset(county_merged_lbw, !is.na(percent))
+
+#fins
+county_merged_fins <- geo_join(counties, map_table_fins, "NAME", "county")
+county_merged_fins <- subset(county_merged_fins, !is.na(percent))
+
+#mhprovider
+
+county_merged_mhprov <- geo_join(counties, map_table_mhprov, "NAME", "county")
+county_merged_mhprov <- subset(county_merged_mhprov, !is.na(ratio))
+
+#suicide
+
+county_merged_suic <- geo_join(counties, map_table_suic , "NAME", "county")
+county_merged_suic  <- subset(county_merged_suic, !is.na(rate))
+
+#overdose
+#suicide
+
+county_merged_od <- geo_join(counties, map_table_od , "NAME", "county")
+county_merged_od  <- subset(county_merged_od, !is.na(rate))
+
+
+
+```
+
+## Basic interactive maps
+``
+Set up color palettes, popups, and base layers -- putting it all together using the [`leaflet` package](https://rstudio.github.io/leaflet/).
+
+
+```{r display-unadjusted, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
+
+### Basic maps ###
+
+## svi
+
+# Creating a color palette based on the number range 
+
+mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_svi$svi, na.color="transparent")
+
+popup_county_svi <- paste0("<strong>", county_merged_svi$NAME, 
+                       "</strong><br />Social Vulnerability Index: ",
+                       as.character(county_merged_svi$svi))
+
+
+svi_map <- county_merged_svi %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
+  addPolygons(data = county_merged_svi, 
+             fillColor = ~mypalette(county_merged_svi$svi), 
+             fillOpacity = 0.7, 
+             weight = 0.2, 
+             smoothFactor = 0.2, 
+             popup = ~popup_county_svi) %>%
+  # Add some labels to counties
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
+   addLegend(pal = mypalette, 
+          values = county_merged_svi$svi, 
+          position = "bottomleft", 
+          title = "Social Vulnerability Index, 2020") %>% 
+  leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
+   leaflet.extras::addResetMapButton()
+
+svi_map
+
+## imr
+
+# Creating a color palette based on the number range 
+
+mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_imr$rate, na.color="transparent")
+
+popup_county_imr <- paste0("<strong>", county_merged_imr$NAME, 
+                       "</strong><br />Infant Mortality Rate (deaths per 100K pop): ",
+                       as.character(county_merged_imr$rate))
+
+
+imr_map <- county_merged_imr %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
+  addPolygons(data = county_merged_imr, 
+             fillColor = ~mypalette(county_merged_imr$rate), 
+             fillOpacity = 0.7, 
+             weight = 0.2, 
+             smoothFactor = 0.2, 
+             popup = ~popup_county_imr) %>%
+  # Add some labels to counties
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
+   addLegend(pal = mypalette, 
+          values = county_merged_imr$rate, 
+          position = "bottomleft", 
+          title = "Infant Mortality Rate, 2017-2021") %>% 
+  leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
+   leaflet.extras::addResetMapButton()
+
+imr_map
+
+## lbw
+
+# Creating a color palette based on the number range 
+
+mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_lbw$percent, na.color="transparent")
+
+popup_county_lbw <- paste0("<strong>", county_merged_lbw$NAME, 
+                       "</strong><br />Low birthweight (Percent of births <2500 g): ",
+                       as.character(county_merged_lbw$percent))
+
+
+lbw_map <- county_merged_lbw %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
+  addPolygons(data = county_merged_lbw, 
+             fillColor = ~mypalette(county_merged_lbw$percent), 
+             fillOpacity = 0.7, 
+             weight = 0.2, 
+             smoothFactor = 0.2, 
+             popup = ~popup_county_lbw) %>%
+  # Add some labels to counties
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
+   addLegend(pal = mypalette, 
+          values = county_merged_lbw$percent, 
+          position = "bottomleft", 
+          title = "Percent Low Birth Weight, 2016-2020") %>% 
+  leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
+   leaflet.extras::addResetMapButton()
+
+lbw_map
+
+## fins
+
+# Creating a color palette based on the number range 
+
+mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_fins$percent, na.color="transparent")
+
+popup_county_fins <- paste0("<strong>", county_merged_fins$NAME, 
+                       "</strong><br />Percent of Population Lacking Adequate Access to Food: ",
+                       as.character(county_merged_fins$percent))
+
+
+fins_map <- county_merged_fins %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
+  addPolygons(data = county_merged_fins, 
+             fillColor = ~mypalette(county_merged_fins$percent), 
+             fillOpacity = 0.7, 
+             weight = 0.2, 
+             smoothFactor = 0.2, 
+             popup = ~popup_county_fins) %>%
+  # Add some labels to counties
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
+   addLegend(pal = mypalette, 
+          values = county_merged_fins$percent, 
+          position = "bottomleft", 
+          title = "Percent Food Insecure, 2019") %>% 
+  leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
+   leaflet.extras::addResetMapButton()
+
+fins_map
+
+## mh provider
+
+
+popup_county_mhprovider <- paste0("<strong>", county_merged_mhprov$NAME,"</strong><br />Ratio of population to mental health providers: ",as.character(county_merged_mhprov$ratio))
+
+county_merged_mhprov$ratio <- as.numeric(county_merged_mhprov$ratio)
+
+pal <- colorBin(
+  palette = "Reds"
+  , domain = county_merged_mhprov$ratio
+  , bins = 8
+ 
+)
+
+
+mhprov_map <- county_merged_mhprov %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
+  addPolygons(data = county_merged_mhprov, 
+             fillColor = ~pal(county_merged_mhprov$ratio), 
+             fillOpacity = 0.7, 
+             weight = 0.2, 
+             smoothFactor = 0.2, 
+             popup = ~popup_county_mhprovider) %>%
+  # Add some labels to counties
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
+   addLegend(pal = pal, 
+          values = county_merged_mhprov$ratio, 
+          position = "bottomleft", 
+          title = "Ratio: population to mental health providers<br />per 100,000 population<br/> 2021") %>% 
+  leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
+   leaflet.extras::addResetMapButton()
+
+mhprov_map
+
+## suicide deaths
+
+popup_county_suic <- paste0("<strong>", county_merged_suic$NAME,"</strong><br />Suicide Death Rate: ",as.character(county_merged_suic$rate))
+
+county_merged_suic$rate <- as.numeric(county_merged_suic$rate)
+
+pal <- colorBin(
+  palette = "Reds"
+  , domain = county_merged_suic$rate
+  , bins = 8
+ 
+)
+
+
+suic_map <- county_merged_suic %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
+  addPolygons(data = county_merged_suic, 
+             fillColor = ~pal(county_merged_suic$rate), 
+             fillOpacity = 0.7, 
+             weight = 0.2, 
+             smoothFactor = 0.2, 
+             popup = ~popup_county_suic) %>%
+  # Add some labels to counties
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
+   addLegend(pal = pal, 
+          values = county_merged_suic$rate, 
+          position = "bottomleft", 
+          title = "Number of Suicides<br />per 100,000 population<br/>2020-2021") %>% 
+  leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
+   leaflet.extras::addResetMapButton()
+
+suic_map
+
+## overdose deaths
+
+popup_county_od <- paste0("<strong>", county_merged_suic$NAME,"</strong><br />Overdose Death Rate: ",as.character(county_merged_od$rate))
+
+county_merged_od$rate <- as.numeric(county_merged_od$rate)
+
+pal <- colorBin(
+  palette = "Reds"
+  , domain = county_merged_od$rate
+  , bins = 8
+ 
+)
+
+
+od_map <- county_merged_od %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
+  addPolygons(data = county_merged_od, 
+             fillColor = ~pal(county_merged_od$rate), 
+             fillOpacity = 0.7, 
+             weight = 0.2, 
+             smoothFactor = 0.2, 
+             popup = ~popup_county_od) %>%
+  # Add some labels to counties
+  addLabelOnlyMarkers(
+    data = centroids,
+    label = ~NAME,
+    labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
+   addLegend(pal = pal, 
+          values = county_merged_od$rate, 
+          position = "bottomleft", 
+          title = "Number of Unintentional Overdose Deaths<br />per 100,000 population<br/> 2020-2021") %>% 
+  leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
+   leaflet.extras::addResetMapButton()
+
+od_map
+
+
+
+```
+
+
+# Social Vulnerability Index Maps {.tabset .tabset-pills}
+
+Pairings with Social Vulnerability Index:
+
+* SVI and Infant Mortality by County
+* SVI and Low Birth Weight by County
+* SVI and Food Insecurity by County
+
+## Pairing 1: SVI and Infant Mortality by County
+
+**Data sources:**
+
+**Social Vulnerability Index**
+
+Social Vulnerability Index by county comes from the Ohio Department of Health [Public Health Data Warehouse](https://odh.ohio.gov/know-our-programs/informatics-and-data-management/resources/odh-full-banner-public-data-warehouse)
+**Social Vulnerability Index (SVI)** created by the US Centers for Disease Control and Prevention (CDC), using the most current data available from the US Census Bureau American Community Survey 5-year estimates (2014-2018). The SVI is a **score ranging from 0 – 1** and is comprised of 15 indicators grouped into 4 themes: Socioeconomic Status (Below Poverty, Unemployed, Income, No High School Diploma), Household Composition & Disability (Aged 65 and Older, Aged 17 and Younger, Civilian with a Disability, Single-Parent Households), Minority Status & Language (Minority, Speak English “Less than Well”), Housing & Transportation (Multi-Unit Structures, Mobile Homes, Crowding, No Vehicle, Group Quarters)
+
+```{r svi_imr, echo=FALSE, eval=TRUE, warning = FALSE, include = TRUE}
+
+svi_map
+imr_map
+
+```
+
+## Pairing 2: SVI and Low Birth Weight by County
+
+**Data sources:**
+
+**County Health Rankings** 
+Percentage of live births with low birthweight (< 2,500 grams). The 2022 County Health Rankings used data from 2014-2020 for this measure.
+
+[Low birth weight](https://www.countyhealthrankings.org/explore-health-rankings/county-health-rankings-model/health-outcomes/quality-of-life/low-birthweight?year=2022&state=39&tab=1)
+
+
+**Social Vulnerability Index**
+
+Social Vulnerability Index by county comes from the Ohio Department of Health [Public Health Data Warehouse](https://odh.ohio.gov/know-our-programs/informatics-and-data-management/resources/odh-full-banner-public-data-warehouse)
+**Social Vulnerability Index (SVI)** created by the US Centers for Disease Control and Prevention (CDC), using the most current data available from the US Census Bureau American Community Survey 5-year estimates (2014-2018). The SVI is a **score ranging from 0 – 1** and is comprised of 15 indicators grouped into 4 themes: Socioeconomic Status (Below Poverty, Unemployed, Income, No High School Diploma), Household Composition & Disability (Aged 65 and Older, Aged 17 and Younger, Civilian with a Disability, Single-Parent Households), Minority Status & Language (Minority, Speak English “Less than Well”), Housing & Transportation (Multi-Unit Structures, Mobile Homes, Crowding, No Vehicle, Group Quarters)
+
+```{r svi_lbw, echo=FALSE, eval=TRUE, warning = FALSE, include = TRUE}
+
+svi_map
+
+lbw_map
+
+```
+
+## Pairing 3: SVI and Food Insecurity
+
+**Data source:**
+
+**County Health Rankings** 
+
+Percentage of population who lack adequate access to food. The 2022 County Health Rankings used data from 2019 for this measure.
+
+[Food insecurity](https://www.countyhealthrankings.org/explore-health-rankings/county-health-rankings-model/health-factors/health-behaviors/diet-and-exercise/food-insecurity?year=2022&state=39&tab=1)
+
+
+**Social Vulnerability Index**
+
+Social Vulnerability Index by county comes from the Ohio Department of Health [Public Health Data Warehouse](https://odh.ohio.gov/know-our-programs/informatics-and-data-management/resources/odh-full-banner-public-data-warehouse)
+**Social Vulnerability Index (SVI)** created by the US Centers for Disease Control and Prevention (CDC), using the most current data available from the US Census Bureau American Community Survey 5-year estimates (2014-2018). The SVI is a **score ranging from 0 – 1** and is comprised of 15 indicators grouped into 4 themes: Socioeconomic Status (Below Poverty, Unemployed, Income, No High School Diploma), Household Composition & Disability (Aged 65 and Older, Aged 17 and Younger, Civilian with a Disability, Single-Parent Households), Minority Status & Language (Minority, Speak English “Less than Well”), Housing & Transportation (Multi-Unit Structures, Mobile Homes, Crowding, No Vehicle, Group Quarters)
+
+```{r svi_fins, echo=FALSE, eval=TRUE, warning = FALSE, include = TRUE}
+
+svi_map
+
+fins_map
+
+```
+
+
+# Mental Health Provider Maps {.tabset .tabset-pills}
+
+Pairings with Mental Health Providers:
+
+* Mental Health Providers and Suicide Deaths by County
+* Mental Health Providers and Overdose Deaths by County
+
+## Pairing 4: Mental Health Providers and Suicide Deaths by County
+
+**Data sources:**
+
+**County Health Rankings:**
+
+[County Health Ranking Mental Health Providers](https://www.countyhealthrankings.org/explore-health-rankings/county-health-rankings-model/health-factors/clinical-care/access-to-care/mental-health-providers?year=2022): Ratio of the population to mental health providers. The ratio represents the number of individuals served by one mental health provider in a county. Ratio of population to mental health providers. The 2022 County Health Rankings used data from *2021* for this measure.
+
+Access to care requires not only financial coverage, but also access to providers. Nearly thirty percent of the population lives in a county designated as a Mental Health Professional Shortage Area. As the mental health parity aspects of the Affordable Care Act create increased coverage for mental health services, many anticipate increased workforce shortages. 
+
+Mental Health Providers is the **ratio of the population to mental health providers**. The ratio represents the number of individuals served by one mental health provider in a county, if the population was equally distributed across providers. For example, if a county has a population of 50,000 and has 20 mental health providers, their ratio would be: 2,500:1. 
+
+**Ohio Department of Health Public Health Warehouse**
+
+*Filters applied:*
+
+by County
+for County = (Adams, Allen, Ashland, Ashtabula, Athens, Auglaize, Belmont, Brown, Butler, Carroll, Champaign, Clark, Clermont, Clinton, Columbiana, Coshocton, Crawford, Cuyahoga, Darke, Defiance, Delaware, Erie, Fairfield, Fayette, Franklin, Fulton, Gallia, Geauga, Greene, Guernsey, Hamilton, Hancock, Hardin, Harrison, Henry, Highland, Hocking, Holmes, Huron, Jackson, Jefferson, Knox, Lake, Lawrence, Licking, Logan, Lorain, Lucas, Madison, Mahoning, Marion, Medina, Meigs, Mercer, Miami, Monroe, Montgomery, Morgan, Morrow, Muskingum, Noble, Ottawa, Paulding, Perry, Pickaway, Pike, Portage, Preble, Putnam, Richland, Ross, Sandusky, Scioto, Seneca, Shelby, Stark, Summit, Trumbull, Tuscarawas, Union, Van Wert, Vinton, Warren, Washington, Wayne, Williams, Wood, Wyandot) , External Injury Intent = (Suicide) , Year = (2020, 2021 **) , Res State = (OH) 
+
+2021 and 2020 pooled due to low numbers.
+
+```{r mhprov_suic, echo=FALSE, eval=TRUE, warning = FALSE, include = TRUE}
+
+mhprov_map
+suic_map
+
+```
+
+## Pairing 5: Mental Health Providers and Overdose Deaths by County
+
+**Data Source**
+
+**County Health Rankings:**
+
+[County Health Ranking Mental Health Providers](https://www.countyhealthrankings.org/explore-health-rankings/county-health-rankings-model/health-factors/clinical-care/access-to-care/mental-health-providers?year=2022): Ratio of the population to mental health providers. The ratio represents the number of individuals served by one mental health provider in a county. Ratio of population to mental health providers. The 2022 County Health Rankings used data from *2021* for this measure.
+
+Access to care requires not only financial coverage, but also access to providers. Nearly thirty percent of the population lives in a county designated as a Mental Health Professional Shortage Area. As the mental health parity aspects of the Affordable Care Act create increased coverage for mental health services, many anticipate increased workforce shortages. 
+
+Mental Health Providers is the **ratio of the population to mental health providers**. The ratio represents the number of individuals served by one mental health provider in a county, if the population was equally distributed across providers. For example, if a county has a population of 50,000 and has 20 mental health providers, their ratio would be: 2,500:1. 
+
+**Ohio Department of Health Public Health Warehouse**
+
+*Filters applied:*
+
+by County
+for County = (Adams, Allen, Ashland, Ashtabula, Athens, Auglaize, Belmont, Brown, Butler, Carroll, Champaign, Clark, Clermont, Clinton, Columbiana, Coshocton, Crawford, Cuyahoga, Darke, Defiance, Delaware, Erie, Fairfield, Fayette, Franklin, Fulton, Gallia, Geauga, Greene, Guernsey, Hamilton, Hancock, Hardin, Harrison, Henry, Highland, Hocking, Holmes, Huron, Jackson, Jefferson, Knox, Lake, Lawrence, Licking, Logan, Lorain, Lucas, Madison, Mahoning, Marion, Medina, Meigs, Mercer, Miami, Monroe, Montgomery, Morgan, Morrow, Muskingum, Noble, Ottawa, Paulding, Perry, Pickaway, Pike, Portage, Preble, Putnam, Richland, Ross, Sandusky, Scioto, Seneca, Shelby, Stark, Summit, Trumbull, Tuscarawas, Union, Van Wert, Vinton, Warren, Washington, Wayne, Williams, Wood, Wyandot) , External Injury Intent = (Unintentional) , External Injury Mechanism Group = (Poisoning) , Year = (2020, 2021 **) , Res State = (OH) 
+
+2021 and 2020 pooled due to low numbers.
+
+```{r mhprov_od, echo=FALSE, eval=TRUE, warning = FALSE, include = TRUE}
+
+mhprov_map
+
+od_map
+
+```
+
+
+
+End transmission!
