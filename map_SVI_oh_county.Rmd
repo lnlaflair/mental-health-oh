@@ -14,7 +14,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-packages <- c("dplyr", "forcats", "plotly", "stringr", "tidyr", "data.table", "purrr", "kableExtra", "flextable", "plotly", "unikn", "leaflet", "leaflegend", "leaflet.extras", "sf", "censusapi", "tidycensus", "tigris")
+packages <- c("dplyr", "forcats", "plotly", "stringr", "tidyr", "data.table", "purrr", "kableExtra", "flextable", "plotly", "unikn", "leaflet", "leaflegend", "leaflet.extras", "sf", "censusapi", "tidycensus", "tigris", "htmlwidgets")
 
 
 # Install packages not yet installed
@@ -512,7 +512,14 @@ od_map <- county_merged_od %>%
 
 od_map
 
+#save maps as html files
 
+saveWidget(mhprov_map, file = "mhprov_map.html")
+saveWidget(od_map, file = "od_map.html")
+saveWidget(suic_map, file = "suic_map.html")
+saveWidget(lbw_map, file = "lbw_map.html")
+saveWidget(imr_map, file = "imr_map.html")
+saveWidget(fins_map, file = "fins_map.html")
 
 ```
 
