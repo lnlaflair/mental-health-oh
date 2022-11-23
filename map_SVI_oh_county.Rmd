@@ -1,6 +1,6 @@
 ---
 title: "HVD Exploratory Analysis for County Disaggregation <img src=\"HPIO_Logo_Small.jpg\" style=\"float: right;\"/>" 
-author: "Lareina La Flair, Health Policy Institute of Ohio"
+author: "Lareina La Flair, MPH, PhD, Health Policy Institute of Ohio"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output: 
   html_document:
@@ -249,6 +249,7 @@ county_merged_od  <- subset(county_merged_od, !is.na(rate))
 ```
 
 ## Basic interactive maps
+
 ``
 Set up color palettes, popups, and base layers -- putting it all together using the [`leaflet` package](https://rstudio.github.io/leaflet/).
 
@@ -262,6 +263,7 @@ Set up color palettes, popups, and base layers -- putting it all together using 
 # Creating a color palette based on the number range 
 
 mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_svi$svi, na.color="transparent")
+pal_quan <- colorQuantile(palette = "YlGnBu", n = 4, domain = county_merged_svi$svi)
 
 popup_county_svi <- paste0("<strong>", county_merged_svi$NAME, 
                        "</strong><br />Social Vulnerability Index: ",
@@ -273,7 +275,7 @@ svi_map <- county_merged_svi %>%
   addProviderTiles("CartoDB.Positron") %>%
   setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
   addPolygons(data = county_merged_svi, 
-             fillColor = ~mypalette(county_merged_svi$svi), 
+             fillColor = ~pal_quan(county_merged_svi$svi), 
              fillOpacity = 0.7, 
              weight = 0.2, 
              smoothFactor = 0.2, 
@@ -283,10 +285,10 @@ svi_map <- county_merged_svi %>%
     data = centroids,
     label = ~NAME,
     labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
-   addLegend(pal = mypalette, 
+   addLegend(pal = pal_quan, 
           values = county_merged_svi$svi, 
           position = "bottomleft", 
-          title = "Social Vulnerability Index, 2020") %>% 
+          title = "Social Vulnerability Index, 2020, Quantiles") %>% 
   leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
    leaflet.extras::addResetMapButton()
 
@@ -297,6 +299,7 @@ svi_map
 # Creating a color palette based on the number range 
 
 mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_imr$rate, na.color="transparent")
+pal_quan <- colorQuantile(palette = "YlGnBu", n = 4, domain = county_merged_imr$rate)
 
 popup_county_imr <- paste0("<strong>", county_merged_imr$NAME, 
                        "</strong><br />Infant Mortality Rate (deaths per 100K pop): ",
@@ -308,7 +311,7 @@ imr_map <- county_merged_imr %>%
   addProviderTiles("CartoDB.Positron") %>%
   setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
   addPolygons(data = county_merged_imr, 
-             fillColor = ~mypalette(county_merged_imr$rate), 
+             fillColor = ~pal_quan(county_merged_imr$rate), 
              fillOpacity = 0.7, 
              weight = 0.2, 
              smoothFactor = 0.2, 
@@ -318,10 +321,10 @@ imr_map <- county_merged_imr %>%
     data = centroids,
     label = ~NAME,
     labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
-   addLegend(pal = mypalette, 
+   addLegend(pal = pal_quan, 
           values = county_merged_imr$rate, 
           position = "bottomleft", 
-          title = "Infant Mortality Rate, 2017-2021") %>% 
+          title = "Infant Mortality Rate, 2017-2021, Quantiles") %>% 
   leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
    leaflet.extras::addResetMapButton()
 
@@ -332,6 +335,7 @@ imr_map
 # Creating a color palette based on the number range 
 
 mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_lbw$percent, na.color="transparent")
+#pal_quan <- colorQuantile(palette = "YlGnBu", n = 4, domain = county_merged_lbw$percent)
 
 popup_county_lbw <- paste0("<strong>", county_merged_lbw$NAME, 
                        "</strong><br />Low birthweight (Percent of births <2500 g): ",
@@ -367,6 +371,7 @@ lbw_map
 # Creating a color palette based on the number range 
 
 mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_fins$percent, na.color="transparent")
+pal_quan <- colorQuantile(palette = "YlGnBu", n = 4, domain = county_merged_fins$percent)
 
 popup_county_fins <- paste0("<strong>", county_merged_fins$NAME, 
                        "</strong><br />Percent of Population Lacking Adequate Access to Food: ",
@@ -378,7 +383,7 @@ fins_map <- county_merged_fins %>%
   addProviderTiles("CartoDB.Positron") %>%
   setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
   addPolygons(data = county_merged_fins, 
-             fillColor = ~mypalette(county_merged_fins$percent), 
+             fillColor = ~pal_quan(county_merged_fins$percent), 
              fillOpacity = 0.7, 
              weight = 0.2, 
              smoothFactor = 0.2, 
@@ -388,10 +393,10 @@ fins_map <- county_merged_fins %>%
     data = centroids,
     label = ~NAME,
     labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
-   addLegend(pal = mypalette, 
+   addLegend(pal = pal_quan, 
           values = county_merged_fins$percent, 
           position = "bottomleft", 
-          title = "Percent Food Insecure, 2019") %>% 
+          title = "Percent Food Insecure, 2019, Quantiles") %>% 
   leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
    leaflet.extras::addResetMapButton()
 
@@ -411,13 +416,14 @@ pal <- colorBin(
  
 )
 
+pal_quan <- colorQuantile(palette = "Reds", n = 4, domain = county_merged_mhprov$ratio)
 
 mhprov_map <- county_merged_mhprov %>%
   leaflet() %>%
   addProviderTiles("CartoDB.Positron") %>%
   setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
   addPolygons(data = county_merged_mhprov, 
-             fillColor = ~pal(county_merged_mhprov$ratio), 
+             fillColor = ~pal_quan(county_merged_mhprov$ratio), 
              fillOpacity = 0.7, 
              weight = 0.2, 
              smoothFactor = 0.2, 
@@ -427,10 +433,10 @@ mhprov_map <- county_merged_mhprov %>%
     data = centroids,
     label = ~NAME,
     labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
-   addLegend(pal = pal, 
+   addLegend(pal = pal_quan, 
           values = county_merged_mhprov$ratio, 
           position = "bottomleft", 
-          title = "Ratio: population to mental health providers<br />per 100,000 population<br/> 2021") %>% 
+          title = "Ratio: population to mental health providers<br />per 100,000 population<br/> 2021, Quantiles") %>% 
   leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
    leaflet.extras::addResetMapButton()
 
@@ -449,13 +455,14 @@ pal <- colorBin(
  
 )
 
+pal_quan <- colorQuantile(palette = "Reds", n = 4, domain = county_merged_suic$rate)
 
 suic_map <- county_merged_suic %>%
   leaflet() %>%
   addProviderTiles("CartoDB.Positron") %>%
   setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
   addPolygons(data = county_merged_suic, 
-             fillColor = ~pal(county_merged_suic$rate), 
+             fillColor = ~pal_quan(county_merged_suic$rate), 
              fillOpacity = 0.7, 
              weight = 0.2, 
              smoothFactor = 0.2, 
@@ -465,10 +472,10 @@ suic_map <- county_merged_suic %>%
     data = centroids,
     label = ~NAME,
     labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
-   addLegend(pal = pal, 
+   addLegend(pal = pal_quan, 
           values = county_merged_suic$rate, 
           position = "bottomleft", 
-          title = "Number of Suicides<br />per 100,000 population<br/>2020-2021") %>% 
+          title = "Number of Suicides<br />per 100,000 population<br/>2020-2021, Quantiles") %>% 
   leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
    leaflet.extras::addResetMapButton()
 
@@ -487,13 +494,14 @@ pal <- colorBin(
  
 )
 
+pal_quan <- colorQuantile(palette = "Reds", n = 4, domain = county_merged_od$rate)
 
 od_map <- county_merged_od %>%
   leaflet() %>%
   addProviderTiles("CartoDB.Positron") %>%
   setView(-82.983330, 39.983334, zoom = 7) %>% #set long and lat coordinates to Columbus as state center
   addPolygons(data = county_merged_od, 
-             fillColor = ~pal(county_merged_od$rate), 
+             fillColor = ~pal_quan(county_merged_od$rate), 
              fillOpacity = 0.7, 
              weight = 0.2, 
              smoothFactor = 0.2, 
@@ -503,10 +511,10 @@ od_map <- county_merged_od %>%
     data = centroids,
     label = ~NAME,
     labelOptions = labelOptions(noHide = TRUE, direction = 'center', textOnly = TRUE, opacity = 0.3)) %>% 
-   addLegend(pal = pal, 
+   addLegend(pal = pal_quan, 
           values = county_merged_od$rate, 
           position = "bottomleft", 
-          title = "Number of Unintentional Overdose Deaths<br />per 100,000 population<br/> 2020-2021") %>% 
+          title = "Number of Unintentional Overdose Deaths<br />per 100,000 population<br/> 2020-2021, Quantiles") %>% 
   leaflet.extras::setMapWidgetStyle(list(background= "transparent")) %>%
    leaflet.extras::addResetMapButton()
 
@@ -539,7 +547,7 @@ Pairings with Social Vulnerability Index:
 **Social Vulnerability Index**
 
 Social Vulnerability Index by county comes from the Ohio Department of Health [Public Health Data Warehouse](https://odh.ohio.gov/know-our-programs/informatics-and-data-management/resources/odh-full-banner-public-data-warehouse)
-**Social Vulnerability Index (SVI)** created by the US Centers for Disease Control and Prevention (CDC), using the most current data available from the US Census Bureau American Community Survey 5-year estimates (2014-2018). The SVI is a **score ranging from 0 – 1** and is comprised of 15 indicators grouped into 4 themes: Socioeconomic Status (Below Poverty, Unemployed, Income, No High School Diploma), Household Composition & Disability (Aged 65 and Older, Aged 17 and Younger, Civilian with a Disability, Single-Parent Households), Minority Status & Language (Minority, Speak English “Less than Well”), Housing & Transportation (Multi-Unit Structures, Mobile Homes, Crowding, No Vehicle, Group Quarters)
+[**Social Vulnerability Index (SVI)**](https://odh.ohio.gov/know-our-programs/health-equity/health-improvement-zones)created by the US Centers for Disease Control and Prevention (CDC), using the most current data available from the US Census Bureau American Community Survey 5-year estimates (2014-2018). The SVI is a **score ranging from 0 – 1** and is comprised of 15 indicators grouped into 4 themes: Socioeconomic Status (Below Poverty, Unemployed, Income, No High School Diploma), Household Composition & Disability (Aged 65 and Older, Aged 17 and Younger, Civilian with a Disability, Single-Parent Households), Minority Status & Language (Minority, Speak English “Less than Well”), Housing & Transportation (Multi-Unit Structures, Mobile Homes, Crowding, No Vehicle, Group Quarters)
 
 ```{r svi_imr, echo=FALSE, eval=TRUE, warning = FALSE, include = TRUE}
 
@@ -652,14 +660,55 @@ for County = (Adams, Allen, Ashland, Ashtabula, Athens, Auglaize, Belmont, Brown
 
 2021 and 2020 pooled due to low numbers.
 
+
 ```{r mhprov_od, echo=FALSE, eval=TRUE, warning = FALSE, include = TRUE}
 
 mhprov_map
-
 od_map
-
 ```
 
+# Correlation analysis
+
+Positive correlations are displayed in blue and negative correlations in red color. Color intensity and the size of the circle are proportional to the correlation coefficients. In the right side of the correlogram, the legend color shows the correlation coefficients and the corresponding colors.
+
+**Interpretation**
+Mental health provider ratio appears to correlate moderately with county suicide rate *but* not in the expected direction. Under the assumption that a higher concentration of providers is associated with greater access to care and, ultimately, reduced suicide risk, we would expect a higher population-to-provider ratio to be positively correlated with suicide rates (higher the ratio, the higher the rate), but here we observe a negative correlation (higher the ratio, the lower the rate). This suggests that other factors operating at the county-, community-, and household- and individual-level may be at play.
+
+```{r corr, echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, results='hide'}
+#join df together by county
+
+#put all data frames into list
+df_list <- list(map_table_mhprov, map_table_od, map_table_suic)
+
+#merge all data frames in list
+mh <- df_list %>% 
+  reduce(left_join, by='county') 
+
+
+mh <- mh %>% 
+  rename(suicrt = rate.x, odrt = rate.y, suict = count.x, odct = count.y) %>% 
+  select(suicrt, odrt, ratio, suict, odct)
+
+mh$suicrt <- as.numeric(mh$suicrt)
+mh$odrt <- as.numeric(mh$odrt)  
+mh$ratio <- as.numeric(mh$ratio) 
+
+library(corrplot)
+
+m <- cor(mh)
+#m <- cor.mtest(mh, conf.level = 0.95)
+invisible(m)
+
+corr_circle <- corrplot(m, method = "circle" , type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+corr_circle
+
+corr_numeric <- corrplot(m, method = "number" , type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+corr_numeric
+
+
+```
 
 
 End transmission!
