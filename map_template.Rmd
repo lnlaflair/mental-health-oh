@@ -60,7 +60,9 @@ You will need a census API key to access data through the Application Programmin
 
 To request an API Key, navigate to the [U.S. Census API Terms of Service](https://www.census.gov/data/developers/about/terms-of-service.html). Make sure to read through the Terms of Service document to you ensure you’re using the API properly. Then click the icon that says “Request a KEY” in the bottom left of the screen.
 
-# Read in the data
+# Read in the data {.tabset .tabset-pills}
+
+## Read in health data
 
 Read in the dataset with the health event or condition you're looking to map.
 
@@ -142,7 +144,7 @@ mypalette <- colorNumeric(palette="viridis", domain=county_merged$count, na.colo
 popup <- paste0("Total Deaths: ", as.character(county_merged$count))
 ```
 
-## Basic map with counts of visits only (unadjusted for population density) 
+# Basic map with counts of visits only (unadjusted for population density) 
 
 Again, don't do this in your final product, but this unadjusted map illustrates how misleading maps without considering population density can be.
 
@@ -173,7 +175,7 @@ county_merged %>%
 
 ```
 
-## Add population density
+# Add population density
 
 Add county population to account for population density using the `get_acs` function. You will need your Census key! (Remember to delete the census key from your code or use a password manager like `keyring`.)
 
@@ -185,7 +187,9 @@ Here, we join county population to df with event by county using GEOID.
 
 # Add your census key
 
-census_api_key('#####################') # paste your key here
+# Add your census key
+
+census_api_key('0172cbf7b12d3e471aaef67bbe7b87a5971cd019') # paste your key here
 
 #census_api_key('[your key here]') 
 

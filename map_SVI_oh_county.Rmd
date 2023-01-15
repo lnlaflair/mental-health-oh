@@ -250,9 +250,7 @@ county_merged_od  <- subset(county_merged_od, !is.na(rate))
 
 ## Basic interactive maps
 
-``
 Set up color palettes, popups, and base layers -- putting it all together using the [`leaflet` package](https://rstudio.github.io/leaflet/).
-
 
 ```{r display-unadjusted, echo=FALSE, eval=TRUE, warning = FALSE, include = FALSE}
 
@@ -336,6 +334,9 @@ imr_map
 
 mypalette <- colorNumeric(palette="YlGnBu", domain=county_merged_lbw$percent, na.color="transparent")
 #pal_quan <- colorQuantile(palette = "YlGnBu", n = 4, domain = county_merged_lbw$percent)
+
+# check distribution
+#previewColors(pal = pal_quan, values = c(seq(.04, .12, by = .01)))
 
 popup_county_lbw <- paste0("<strong>", county_merged_lbw$NAME, 
                        "</strong><br />Low birthweight (Percent of births <2500 g): ",
